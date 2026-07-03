@@ -14,6 +14,10 @@ export default function TabLayout() {
     return <Redirect href="/" />;
   }
 
+  if (user.role === 'admin') {
+    return <Redirect href="/admin" />;
+  }
+
   return (
     <Tabs
       screenOptions={{
@@ -27,14 +31,22 @@ export default function TabLayout() {
       <Tabs.Screen
         name="home"
         options={{
-          title: 'Market Feed',
+          title: 'Market',
           tabBarIcon: ({ color, size }) => <Ionicons name="home-outline" size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="orders"
+        options={{
+          title: 'Orders',
+          tabBarIcon: ({ color, size }) => <Ionicons name="cart-outline" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="create"
         options={{
-          title: 'Create Post',
+          title: 'Post',
+          href: user.role === 'farmer' ? '/create' : null,
           tabBarIcon: ({ color, size }) => <Ionicons name="add-circle-outline" size={size} color={color} />,
         }}
       />
@@ -42,6 +54,7 @@ export default function TabLayout() {
         name="my-posts"
         options={{
           title: 'My Posts',
+          href: user.role === 'farmer' ? '/my-posts' : null,
           tabBarIcon: ({ color, size }) => <Ionicons name="list-outline" size={size} color={color} />,
         }}
       />

@@ -1,5 +1,5 @@
 // types/index.ts
-export type UserRole = 'farmer' | 'buyer';
+export type UserRole = 'farmer' | 'buyer' | 'admin';
 
 export type AppUser = {
   uid: string;
@@ -23,4 +23,18 @@ export type Post = {
   images: string[];       // URLs from Firebase Storage
   createdAt: any;         // Timestamp
   status: 'available' | 'sold';
+};
+
+export type OrderStatus = 'pending' | 'accepted' | 'rejected' | 'completed' | 'cancelled';
+
+export type Order = {
+  id: string;
+  postId: string;
+  produceName: string;
+  buyerUid: string;
+  farmerUid: string;
+  priceOffered: number;
+  quantity: number;
+  status: OrderStatus;
+  createdAt: any;
 };

@@ -30,7 +30,7 @@
 
 // config/firebaseConfig.ts
 import { initializeApp } from 'firebase/app';
-import { getAuth, initializeAuth, getReactNativePersistence } from 'firebase/auth';
+import { getAuth, initializeAuth } from 'firebase/auth';
 import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
 import { getDatabase } from 'firebase/database';
 import { getStorage } from 'firebase/storage';
@@ -49,10 +49,8 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 
-// Auth with persistence
-export const auth = initializeAuth(app, {
-    persistence: getReactNativePersistence(ReactNativeAsyncStorage),
-});
+// Auth (using standard getAuth, persistence might need to be configured differently if needed, but standard works for most setups)
+export const auth = getAuth(app);
 
 export const database = getDatabase(app);   // Realtime Database
 export const storage = getStorage(app);

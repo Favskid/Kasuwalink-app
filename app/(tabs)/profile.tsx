@@ -1,120 +1,171 @@
 // app/(tabs)/profile.tsx
-import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
-import { router } from 'expo-router';
+import { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, Alert, ActivityIndicator, ScrollView } from 'react-native';
+import { useAuth } from '../../hooks/useAuth';
 import { COLORS } from '../../constants/colors';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '../../hooks/useAuth';
+import { router } from 'expo-router';
+import ScreenWrapper from '../../components/ScreenWrapper';
 
 export default function ProfileScreen() {
-  const { user, loading, logout } = useAuth();
+  const { user, logout, updateProfileData } = useAuth();
+  const [isEditing, setIsEditing] = useState(false);
+  const [displayName, setDisplayName] = useState(user?.displayName || '');
+  const [phone, setPhone] = useState(user?.phone || '');
+  const [location, setLocation] = useState(user?.location || '');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (user) {
+      setDisplayName(user.displayName || '');
+      setPhone(user.phone || '');
+      setLocation(user.location || '');
+    }
+  }, [user]);
+
+  const handleSave = async () => {
+    if (!user) return;
+    setSaving(true);
+    try {
+      await updateProfileData(user.uid, { displayName, phone, location });
+      Alert.alert('Success', 'Profile updated successfully!');
+      setIsEditing(false);
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to update profile');
+    }
+    setSaving(false);
+  };
 
   const handleLogout = async () => {
     try {
       await logout();
-      Alert.alert('Logged Out', 'Please log in again to continue');
       router.replace('/');
-    } catch (error: any) {
-      Alert.alert('Logout Failed', error.message);
+    } catch (e: any) {
+      Alert.alert('Logout Error', e.message);
     }
   };
 
-  if (loading) {
-    return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
-      </View>
-    );
-  }
-
-  if (!user) {
-    return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', padding: 20 }]}>
-        <Ionicons name="person-outline" size={80} color={COLORS.primary} />
-        <Text style={{ fontSize: 18, marginVertical: 20, textAlign: 'center' }}>You are not logged in</Text>
-        <TouchableOpacity
-          style={{ backgroundColor: COLORS.primary, padding: 15, borderRadius: 8, width: '100%', alignItems: 'center' }}
-          onPress={() => router.replace('/')}
-        >
-          <Text style={{ color: 'white', fontWeight: 'bold' }}>Go to Login</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
+  if (!user) return <ActivityIndicator style={styles.center} color={COLORS.primary} />;
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <View style={styles.avatar}>
-          <Ionicons name="person" size={60} color={COLORS.primary} />
+    <ScreenWrapper>
+      <ScrollView contentContainerStyle={styles.container}>
+        <View style={styles.header}>
+          <View style={styles.avatarContainer}>
+            <Ionicons name="person-circle-outline" size={100} color={COLORS.primary} />
+            <View style={styles.roleBadge}>
+              <Text style={styles.roleText}>{user.role.toUpperCase()}</Text>
+            </View>
+          </View>
         </View>
-        <Text style={styles.name}>{user.displayName || 'User'}</Text>
-        <Text style={styles.role}>{user.role.charAt(0).toUpperCase() + user.role.slice(1)}</Text>
-      </View>
 
-      <View style={styles.infoCard}>
-        <Text style={styles.sectionTitle}>Account Information</Text>
-        <Text style={styles.info}>📧 Email: {user.email}</Text>
-        <Text style={styles.info}>🆔 User ID: {user.uid.slice(0, 10)}...</Text>
-        <Text style={styles.info}>🌾 Role: {user.role.charAt(0).toUpperCase() + user.role.slice(1)}</Text>
-      </View>
+        <View style={styles.glassCard}>
+          <View style={styles.cardHeader}>
+            <Text style={styles.cardTitle}>Personal Information</Text>
+            <TouchableOpacity onPress={() => isEditing ? handleSave() : setIsEditing(true)}>
+              {saving ? (
+                <ActivityIndicator color={COLORS.primary} size="small" />
+              ) : (
+                <Text style={styles.editText}>{isEditing ? 'Save' : 'Edit'}</Text>
+              )}
+            </TouchableOpacity>
+          </View>
 
-      <View style={styles.menu}>
-        <TouchableOpacity style={styles.menuItem} onPress={() => Alert.alert('Feature Coming Soon', 'Edit profile will be added later')}>
-          <Ionicons name="create-outline" size={24} color={COLORS.text} />
-          <Text style={styles.menuText}>Edit Profile</Text>
+          <View style={styles.infoRow}>
+            <Ionicons name="person-outline" size={24} color={COLORS.textLight} />
+            <View style={styles.infoContent}>
+              <Text style={styles.label}>Full Name</Text>
+              {isEditing ? (
+                <TextInput style={styles.input} value={displayName} onChangeText={setDisplayName} />
+              ) : (
+                <Text style={styles.value}>{user.displayName || 'Not provided'}</Text>
+              )}
+            </View>
+          </View>
+
+          <View style={styles.infoRow}>
+            <Ionicons name="mail-outline" size={24} color={COLORS.textLight} />
+            <View style={styles.infoContent}>
+              <Text style={styles.label}>Email Address</Text>
+              <Text style={styles.value}>{user.email}</Text>
+            </View>
+          </View>
+
+          <View style={styles.infoRow}>
+            <Ionicons name="call-outline" size={24} color={COLORS.textLight} />
+            <View style={styles.infoContent}>
+              <Text style={styles.label}>Phone Number</Text>
+              {isEditing ? (
+                <TextInput style={styles.input} value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
+              ) : (
+                <Text style={styles.value}>{user.phone || 'Not provided'}</Text>
+              )}
+            </View>
+          </View>
+
+          <View style={styles.infoRow}>
+            <Ionicons name="location-outline" size={24} color={COLORS.textLight} />
+            <View style={styles.infoContent}>
+              <Text style={styles.label}>Location / Address</Text>
+              {isEditing ? (
+                <TextInput style={styles.input} value={location} onChangeText={setLocation} />
+              ) : (
+                <Text style={styles.value}>{user.location || 'Not provided'}</Text>
+              )}
+            </View>
+          </View>
+        </View>
+
+        {user.role === 'admin' && (
+          <TouchableOpacity 
+            style={[styles.glassCard, { marginTop: 10, flexDirection: 'row', alignItems: 'center' }]} 
+            onPress={() => router.push('/admin')}
+          >
+            <Ionicons name="shield-checkmark-outline" size={24} color={COLORS.primary} />
+            <Text style={{ marginLeft: 10, fontSize: 16, fontWeight: 'bold', color: COLORS.text }}>Go to Admin Dashboard</Text>
+          </TouchableOpacity>
+        )}
+
+        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
+          <Ionicons name="log-out-outline" size={20} color="white" />
+          <Text style={styles.logoutText}>Log Out</Text>
         </TouchableOpacity>
-
-        <TouchableOpacity style={styles.menuItem} onPress={() => Alert.alert('Kawasulink v1.0', 'Final Year Project Demo')}>
-          <Ionicons name="information-circle-outline" size={24} color={COLORS.text} />
-          <Text style={styles.menuText}>About App</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.menuItem, { borderBottomWidth: 0 }]}
-          onPress={handleLogout}
-        >
-          <Ionicons name="log-out-outline" size={24} color="#F44336" />
-          <Text style={[styles.menuText, { color: '#F44336' }]}>Logout</Text>
-        </TouchableOpacity>
-      </View>
-
-      <Text style={styles.footer}>Kawasulink - Final Year Project</Text>
-    </View>
+      </ScrollView>
+    </ScreenWrapper>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
-  header: { alignItems: 'center', padding: 30, backgroundColor: COLORS.primary, borderBottomLeftRadius: 30, borderBottomRightRadius: 30 },
-  avatar: {
-    width: 100,
-    height: 100,
-    backgroundColor: 'white',
-    borderRadius: 50,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12
+  container: { flexGrow: 1, padding: 20 },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  header: { alignItems: 'center', marginBottom: 20, marginTop: 10 },
+  avatarContainer: { position: 'relative', alignItems: 'center' },
+  roleBadge: { position: 'absolute', bottom: 5, backgroundColor: COLORS.primary, paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12, borderWidth: 2, borderColor: 'white' },
+  roleText: { color: 'white', fontSize: 12, fontWeight: 'bold' },
+  
+  glassCard: { 
+    backgroundColor: 'rgba(255, 255, 255, 0.90)', 
+    borderRadius: 20, 
+    padding: 20, 
+    shadowColor: '#000', 
+    shadowOffset: { width: 0, height: 4 }, 
+    shadowOpacity: 0.05, 
+    shadowRadius: 10, 
+    elevation: 3, 
+    borderWidth: 1, 
+    borderColor: 'rgba(255, 255, 255, 0.5)',
+    marginBottom: 20 
   },
-  name: { fontSize: 22, fontWeight: 'bold', color: 'white' },
-  role: { fontSize: 16, color: 'white', opacity: 0.9 },
-  infoCard: {
-    backgroundColor: 'white',
-    margin: 16,
-    padding: 20,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#eee'
-  },
-  sectionTitle: { fontSize: 18, fontWeight: '600', marginBottom: 12, color: COLORS.primary },
-  info: { fontSize: 15, marginBottom: 8, color: COLORS.text },
-  menu: { backgroundColor: 'white', margin: 16, borderRadius: 12, overflow: 'hidden' },
-  menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 18,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee'
-  },
-  menuText: { marginLeft: 15, fontSize: 16, color: COLORS.text },
-  footer: { textAlign: 'center', marginTop: 30, color: '#888', fontSize: 12 },
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, borderBottomWidth: 1, borderBottomColor: COLORS.border, paddingBottom: 10 },
+  cardTitle: { fontSize: 18, fontWeight: 'bold', color: COLORS.text },
+  editText: { color: COLORS.primary, fontWeight: 'bold', fontSize: 16 },
+  
+  infoRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
+  infoContent: { marginLeft: 15, flex: 1 },
+  label: { fontSize: 12, color: COLORS.textLight, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
+  value: { fontSize: 16, color: COLORS.text, fontWeight: '500' },
+  input: { borderBottomWidth: 1, borderBottomColor: COLORS.primary, fontSize: 16, color: COLORS.text, paddingVertical: 4 },
+  
+  logoutBtn: { backgroundColor: '#EF4444', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 16, borderRadius: 12, marginTop: 10, shadowColor: '#EF4444', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 5 },
+  logoutText: { color: 'white', fontSize: 16, fontWeight: 'bold', marginLeft: 8 },
 });

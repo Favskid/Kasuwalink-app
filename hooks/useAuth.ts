@@ -56,7 +56,11 @@ export function useAuth() {
 
   const signIn = async (email: string, password: string) => {
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
-    return userCredential.user;
+    const userSnapshot = await get(ref(database, 'users/' + userCredential.user.uid));
+    if (userSnapshot.exists()) {
+      return { ...userSnapshot.val() as AppUser };
+    }
+    return { uid: userCredential.user.uid, email: userCredential.user.email || '', displayName: '', role: 'buyer' as UserRole };
   };
 
   const logout = async () => {
@@ -64,5 +68,12 @@ export function useAuth() {
     setUser(null);
   };
 
-  return { user, loading, signUp, signIn, logout };
+  const updateProfileData = async (data: Partial<AppUser>) => {
+    if (!user) return;
+    const updatedUser = { ...user, ...data };
+    await set(ref(database, 'users/' + user.uid), updatedUser);
+    setUser(updatedUser);
+  };
+
+  return { user, loading, signUp, signIn, logout, updateProfileData };
 }
