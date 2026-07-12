@@ -1,9 +1,10 @@
 // app/_layout.tsx
 import { Stack } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { View, Text, ActivityIndicator } from 'react-native';
 import { onAuthStateChanged } from 'firebase/auth';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { auth } from '../config/firebaseConfig';
+import { COLORS } from '../constants/colors';
 
 export default function RootLayout() {
   const [initializing, setInitializing] = useState(true);
@@ -17,19 +18,64 @@ export default function RootLayout() {
 
   if (initializing) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color="#4CAF50" />
-        <Text style={{ marginTop: 10 }}>Loading Kawasulink...</Text>
+      <View style={styles.splash}>
+        <Text style={styles.logo}>🌾</Text>
+        <Text style={styles.brand}>Kasuwalink</Text>
+        <Text style={styles.tagline}>Farm to Market</Text>
+        <ActivityIndicator
+          size="large"
+          color={COLORS.primaryLight}
+          style={{ marginTop: 40 }}
+        />
       </View>
     );
   }
 
   return (
-    <Stack screenOptions={{ headerShown: true, headerTintColor: '#4CAF50' }}>
-      <Stack.Screen name="index" options={{ title: 'Kawasulink', headerShown: false }} />
-      <Stack.Screen name="login" options={{ title: 'Login' }} />
-      <Stack.Screen name="register" options={{ title: 'Create Account' }} />
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+    <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="index" />
+      <Stack.Screen name="login" />
+      <Stack.Screen name="register" />
+      <Stack.Screen name="(tabs)" />
+      <Stack.Screen name="admin" />
+      <Stack.Screen name="chat/[threadId]" />
+      <Stack.Screen
+        name="verify"
+        options={{
+          headerShown: true,
+          title: 'Verify Account',
+          headerStyle: { backgroundColor: COLORS.primary },
+          headerTintColor: '#fff',
+          headerTitleStyle: { fontWeight: '700' },
+        }}
+      />
     </Stack>
   );
 }
+
+const styles = StyleSheet.create({
+  splash: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: COLORS.primary,
+  },
+  logo: {
+    fontSize: 72,
+    marginBottom: 12,
+  },
+  brand: {
+    fontSize: 36,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: 1,
+  },
+  tagline: {
+    fontSize: 16,
+    color: 'rgba(255,255,255,0.7)',
+    fontWeight: '400',
+    marginTop: 6,
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+  },
+});

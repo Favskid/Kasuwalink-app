@@ -1,188 +1,362 @@
 // app/register.tsx
-import { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, ScrollView } from 'react-native';
-import { router } from 'expo-router';
-import { useAuth } from '../hooks/useAuth';
-import { COLORS } from '../constants/colors';
-import { UserRole } from '../types';
 import { Ionicons } from '@expo/vector-icons';
-import ScreenWrapper from '../components/ScreenWrapper';
+import { router } from 'expo-router';
+import { useState } from 'react';
+import {
+    ActivityIndicator,
+    Alert,
+    KeyboardAvoidingView, Platform, ScrollView, StatusBar,
+    StyleSheet,
+    Text, TextInput, TouchableOpacity,
+    View,
+} from 'react-native';
+import { COLORS } from '../constants/colors';
+import { useAuth } from '../hooks/useAuth';
+import { UserRole } from '../types';
 
 export default function RegisterScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [displayName, setDisplayName] = useState('');
+  const [phone, setPhone] = useState('');
   const [role, setRole] = useState<UserRole>('buyer');
   const [loading, setLoading] = useState(false);
   const { signUp } = useAuth();
 
+  const getFriendlyError = (code: string): string => {
+    switch (code) {
+      case 'auth/email-already-in-use':
+        return 'An account with this email already exists. Try signing in instead.';
+      case 'auth/invalid-email':
+        return 'That email address is not valid.';
+      case 'auth/weak-password':
+        return 'Password is too weak. Use at least 6 characters.';
+      case 'auth/network-request-failed':
+        return 'No internet connection. Please check your network.';
+      default:
+        return 'Registration failed. Please check your details and try again.';
+    }
+  };
+
   const handleRegister = async () => {
-    if (!email || !password || !displayName) {
-      Alert.alert('Error', 'Please fill all fields');
+    if (!email.trim() || !password || !displayName.trim()) {
+      Alert.alert('Missing Fields', 'Please fill in all required fields');
       return;
     }
     if (password.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters');
+      Alert.alert('Weak Password', 'Password must be at least 6 characters');
       return;
     }
-
     setLoading(true);
     try {
-      await signUp(email, password, displayName, role);
-      Alert.alert('Success', 'Account created! Welcome to Kawasulink');
+      await signUp(email.trim().toLowerCase(), password, displayName.trim(), role, phone.trim());
       router.replace('/(tabs)/home');
     } catch (error: any) {
-      Alert.alert('Registration Failed', error.message);
+      const code = error?.code || '';
+      Alert.alert('Registration Failed', getFriendlyError(code));
     }
     setLoading(false);
   };
 
   return (
-    <ScreenWrapper>
-      <ScrollView contentContainerStyle={styles.container}>
-        <View style={styles.glassCard}>
-          <View style={styles.iconContainer}>
-            <Ionicons name="leaf-outline" size={40} color={COLORS.primary} />
-          </View>
-          <Text style={styles.title}>Create Account</Text>
-          <Text style={styles.subtitle}>Join the agricultural marketplace today</Text>
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: COLORS.primary }}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
 
-          <TextInput style={styles.input} placeholder="Full Name" value={displayName} onChangeText={setDisplayName} placeholderTextColor={COLORS.textLight} />
-          <TextInput style={styles.input} placeholder="Email Address" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" placeholderTextColor={COLORS.textLight} />
-          
-          <View style={styles.passwordContainer}>
-            <TextInput 
-              style={styles.passwordInput} 
-              placeholder="Password (min 6 chars)" 
-              value={password} 
-              onChangeText={setPassword} 
-              secureTextEntry={!showPassword} 
+      <View style={styles.topArea}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+          <Ionicons name="chevron-back" size={24} color="rgba(255,255,255,0.8)" />
+        </TouchableOpacity>
+        <Text style={styles.brandMark}>🌾 Kasuwalink</Text>
+        <Text style={styles.topGreeting}>Join Nigeria's #1 farm marketplace</Text>
+      </View>
+
+      <ScrollView
+        style={styles.card}
+        contentContainerStyle={styles.cardContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        <Text style={styles.title}>Create Account</Text>
+        <Text style={styles.subtitle}>Start buying or selling produce today</Text>
+
+        {/* Role selector */}
+        <View style={styles.fieldGroup}>
+          <Text style={styles.fieldLabel}>I am a</Text>
+          <View style={styles.roleRow}>
+            <TouchableOpacity
+              style={[styles.roleCard, role === 'farmer' && styles.roleCardActive]}
+              onPress={() => setRole('farmer')}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.roleEmoji}>👨‍🌾</Text>
+              <Text style={[styles.roleTitle, role === 'farmer' && styles.roleTitleActive]}>Farmer</Text>
+              <Text style={[styles.roleDesc, role === 'farmer' && { color: COLORS.primary }]}>
+                List & sell produce
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.roleCard, role === 'buyer' && styles.roleCardActive]}
+              onPress={() => setRole('buyer')}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.roleEmoji}>🛒</Text>
+              <Text style={[styles.roleTitle, role === 'buyer' && styles.roleTitleActive]}>Buyer</Text>
+              <Text style={[styles.roleDesc, role === 'buyer' && { color: COLORS.primary }]}>
+                Find & buy produce
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Full Name */}
+        <View style={styles.fieldGroup}>
+          <Text style={styles.fieldLabel}>Full Name</Text>
+          <View style={styles.inputWrapper}>
+            <Ionicons name="person-outline" size={20} color={COLORS.textLight} style={styles.inputIcon} />
+            <TextInput
+              style={styles.input}
+              placeholder="Your full name"
+              value={displayName}
+              onChangeText={setDisplayName}
               placeholderTextColor={COLORS.textLight}
             />
-            <TouchableOpacity 
-              style={styles.eyeIcon} 
-              onPress={() => setShowPassword(!showPassword)}
-            >
-              <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={22} color={COLORS.textLight} />
-            </TouchableOpacity>
           </View>
-
-          <Text style={styles.roleLabel}>I am a:</Text>
-          <View style={styles.roleContainer}>
-            <TouchableOpacity 
-              style={[styles.roleButton, role === 'farmer' && styles.roleButtonActive]} 
-              onPress={() => setRole('farmer')}
-            >
-              <Ionicons name="leaf" size={20} color={role === 'farmer' ? COLORS.primary : COLORS.textLight} />
-              <Text style={[styles.roleText, role === 'farmer' && styles.roleTextActive]}>Farmer</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={[styles.roleButton, role === 'buyer' && styles.roleButtonActive]} 
-              onPress={() => setRole('buyer')}
-            >
-              <Ionicons name="cart" size={20} color={role === 'buyer' ? COLORS.primary : COLORS.textLight} />
-              <Text style={[styles.roleText, role === 'buyer' && styles.roleTextActive]}>Buyer</Text>
-            </TouchableOpacity>
-          </View>
-
-          <TouchableOpacity style={styles.button} onPress={handleRegister} disabled={loading}>
-            {loading ? <ActivityIndicator color="white" /> : <Text style={styles.buttonText}>Create Account</Text>}
-          </TouchableOpacity>
-
-          <TouchableOpacity onPress={() => router.push('/login')} style={styles.linkContainer}>
-            <Text style={styles.linkText}>Already have an account? <Text style={styles.linkTextBold}>Sign In</Text></Text>
-          </TouchableOpacity>
         </View>
+
+        {/* Email */}
+        <View style={styles.fieldGroup}>
+          <Text style={styles.fieldLabel}>Email Address</Text>
+          <View style={styles.inputWrapper}>
+            <Ionicons name="mail-outline" size={20} color={COLORS.textLight} style={styles.inputIcon} />
+            <TextInput
+              style={styles.input}
+              placeholder="you@example.com"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              placeholderTextColor={COLORS.textLight}
+            />
+          </View>
+        </View>
+
+        {/* Phone */}
+        <View style={styles.fieldGroup}>
+          <Text style={styles.fieldLabel}>Phone Number</Text>
+          <View style={styles.inputWrapper}>
+            <Ionicons name="call-outline" size={20} color={COLORS.textLight} style={styles.inputIcon} />
+            <TextInput
+              style={styles.input}
+              placeholder="080XXXXXXXX"
+              value={phone}
+              onChangeText={setPhone}
+              keyboardType="phone-pad"
+              placeholderTextColor={COLORS.textLight}
+            />
+          </View>
+        </View>
+
+        {/* Password */}
+        <View style={styles.fieldGroup}>
+          <Text style={styles.fieldLabel}>Password</Text>
+          <View style={styles.inputWrapper}>
+            <Ionicons name="lock-closed-outline" size={20} color={COLORS.textLight} style={styles.inputIcon} />
+            <TextInput
+              style={[styles.input, { flex: 1 }]}
+              placeholder="Min. 6 characters"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry={!showPassword}
+              placeholderTextColor={COLORS.textLight}
+            />
+            <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeBtn}>
+              <Ionicons
+                name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                size={20}
+                color={COLORS.textLight}
+              />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <TouchableOpacity
+          style={[styles.submitBtn, loading && styles.submitBtnDisabled]}
+          onPress={handleRegister}
+          disabled={loading}
+          activeOpacity={0.85}
+        >
+          {loading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <>
+              <Ionicons name="checkmark-circle-outline" size={20} color="#fff" />
+              <Text style={styles.submitBtnText}>Create Account</Text>
+            </>
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.linkRow}
+          onPress={() => router.push('/login')}
+        >
+          <Text style={styles.linkText}>
+            Already have an account?{' '}
+            <Text style={styles.linkBold}>Sign In</Text>
+          </Text>
+        </TouchableOpacity>
       </ScrollView>
-    </ScreenWrapper>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flexGrow: 1, justifyContent: 'center', padding: 20 },
-  glassCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.90)',
-    borderRadius: 24,
-    padding: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.1,
-    shadowRadius: 20,
-    elevation: 5,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.5)',
+  topArea: {
+    paddingTop: Platform.OS === 'android' ? 50 : 60,
+    paddingBottom: 28,
+    paddingHorizontal: 24,
   },
-  iconContainer: {
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  title: { fontSize: 28, fontWeight: '800', color: COLORS.text, marginBottom: 4, textAlign: 'center' },
-  subtitle: { fontSize: 14, color: COLORS.textLight, textAlign: 'center', marginBottom: 25 },
-  input: {
-    backgroundColor: 'rgba(249, 250, 251, 0.8)',
-    padding: 16,
-    borderRadius: 12,
+  backBtn: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
     marginBottom: 16,
-    borderWidth: 1,
+  },
+  brandMark: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#fff',
+    marginBottom: 4,
+  },
+  topGreeting: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.7)',
+  },
+  card: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+  },
+  cardContent: {
+    padding: 28,
+    paddingBottom: 50,
+  },
+  title: {
+    fontSize: 26,
+    fontWeight: '800',
+    color: COLORS.text,
+    marginBottom: 4,
+  },
+  subtitle: {
+    fontSize: 14,
+    color: COLORS.textLight,
+    marginBottom: 28,
+  },
+  fieldGroup: {
+    marginBottom: 18,
+  },
+  fieldLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.textMid,
+    marginBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  roleRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  roleCard: {
+    flex: 1,
+    backgroundColor: COLORS.surface,
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 2,
     borderColor: COLORS.border,
-    fontSize: 16,
+    alignItems: 'center',
+    gap: 4,
+  },
+  roleCardActive: {
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.primaryPale,
+  },
+  roleEmoji: {
+    fontSize: 30,
+    marginBottom: 4,
+  },
+  roleTitle: {
+    fontSize: 15,
+    fontWeight: '700',
     color: COLORS.text,
   },
-  passwordContainer: {
+  roleTitleActive: {
+    color: COLORS.primary,
+  },
+  roleDesc: {
+    fontSize: 12,
+    color: COLORS.textLight,
+    textAlign: 'center',
+  },
+  inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(249, 250, 251, 0.8)',
+    backgroundColor: COLORS.surface,
     borderRadius: 12,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: COLORS.border,
-    marginBottom: 20,
+    paddingHorizontal: 14,
   },
-  passwordInput: {
+  inputIcon: {
+    marginRight: 10,
+  },
+  input: {
     flex: 1,
-    padding: 16,
-    fontSize: 16,
+    paddingVertical: 14,
+    fontSize: 15,
     color: COLORS.text,
   },
-  eyeIcon: {
-    padding: 16,
+  eyeBtn: {
+    padding: 6,
   },
-  roleLabel: { fontSize: 14, fontWeight: '600', color: COLORS.textLight, marginBottom: 10, textTransform: 'uppercase' },
-  roleContainer: { flexDirection: 'row', gap: 12, marginBottom: 25 },
-  roleButton: { 
-    flex: 1, 
+  submitBtn: {
+    backgroundColor: COLORS.primary,
     flexDirection: 'row',
-    gap: 8,
-    padding: 16, 
-    borderWidth: 1, 
-    borderColor: COLORS.border, 
-    borderRadius: 12, 
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(249, 250, 251, 0.8)'
-  },
-  roleButtonActive: { 
-    borderColor: COLORS.primary, 
-    backgroundColor: '#F0FDF4',
-    borderWidth: 2,
-  },
-  roleText: { fontSize: 16, fontWeight: '600', color: COLORS.textLight },
-  roleTextActive: { color: COLORS.primary },
-  button: {
-    backgroundColor: COLORS.primary,
-    padding: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-    marginTop: 5,
+    gap: 10,
+    paddingVertical: 16,
+    borderRadius: 14,
+    marginTop: 10,
     shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
-    shadowRadius: 8,
+    shadowRadius: 10,
     elevation: 5,
   },
-  buttonText: { color: 'white', fontSize: 16, fontWeight: 'bold', letterSpacing: 0.5 },
-  linkContainer: { marginTop: 24, alignItems: 'center' },
-  linkText: { color: COLORS.textLight, fontSize: 15 },
-  linkTextBold: { color: COLORS.primary, fontWeight: 'bold' },
+  submitBtnDisabled: {
+    opacity: 0.7,
+  },
+  submitBtnText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  linkRow: {
+    alignItems: 'center',
+    marginTop: 24,
+  },
+  linkText: {
+    color: COLORS.textLight,
+    fontSize: 14,
+  },
+  linkBold: {
+    color: COLORS.primary,
+    fontWeight: '700',
+  },
 });

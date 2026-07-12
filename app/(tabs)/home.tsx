@@ -1,230 +1,830 @@
 // app/(tabs)/home.tsx
-import { useState, useEffect } from 'react';
-import { View, Text, FlatList, StyleSheet, ActivityIndicator, RefreshControl, TouchableOpacity, TextInput, Modal, Alert, Image } from 'react-native';
-import { ref, onValue, push, set, serverTimestamp } from 'firebase/database';
-import { database } from '../../config/firebaseConfig';
-import { Post } from '../../types';
-import { COLORS } from '../../constants/colors';
-import { router } from 'expo-router';
-import { useAuth } from '../../hooks/useAuth';
 import { Ionicons } from '@expo/vector-icons';
-import ScreenWrapper from '../../components/ScreenWrapper';
+import { router } from 'expo-router';
+import { VideoView, useVideoPlayer } from 'expo-video';
+import { onValue, push, ref, serverTimestamp, set } from 'firebase/database';
+import { useEffect, useState } from 'react';
+import {
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    Image,
+    Modal,
+    Platform,
+    RefreshControl,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
+} from 'react-native';
+import { database } from '../../config/firebaseConfig';
+import { COLORS } from '../../constants/colors';
+import { useAuth } from '../../hooks/useAuth';
+import { Post } from '../../types';
 
+// ─── Video Modal Component ──────────────────────────────────────────────────
+function VideoModal({ visible, videoUrl, onClose }: { visible: boolean; videoUrl: string; onClose: () => void }) {
+  const player = useVideoPlayer(videoUrl, (p) => {
+    p.loop = false;
+    p.play();
+  });
+
+  return (
+    <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
+      <View style={videoStyles.overlay}>
+        <View style={videoStyles.container}>
+          <View style={videoStyles.header}>
+            <View style={videoStyles.liveBadgeLg}>
+              <Ionicons name="videocam" size={14} color="#fff" />
+              <Text style={videoStyles.liveBadgeText}>PRODUCE VIDEO</Text>
+            </View>
+            <TouchableOpacity style={videoStyles.closeBtn} onPress={onClose}>
+              <Ionicons name="close" size={24} color="#fff" />
+            </TouchableOpacity>
+          </View>
+          <VideoView
+            player={player}
+            style={videoStyles.video}
+            allowsFullscreen
+            allowsPictureInPicture
+          />
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const videoStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.92)',
+    justifyContent: 'center',
+    padding: 16,
+  },
+  container: {
+    borderRadius: 20,
+    overflow: 'hidden',
+    backgroundColor: '#000',
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 14,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+  },
+  liveBadgeLg: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: COLORS.live,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 20,
+  },
+  liveBadgeText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 12,
+    letterSpacing: 0.5,
+  },
+  closeBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  video: {
+    width: '100%',
+    aspectRatio: 16 / 9,
+  },
+});
+
+// ─── Offer Modal Component ──────────────────────────────────────────────────
+function OfferModal({
+  visible, post, onClose, onSubmit,
+}: {
+  visible: boolean;
+  post: Post | null;
+  onClose: () => void;
+  onSubmit: (price: string, qty: string) => void;
+}) {
+  const [offerPrice, setOfferPrice] = useState(post?.price?.toString() || '');
+  const [offerQty, setOfferQty] = useState('1');
+
+  useEffect(() => {
+    if (post) {
+      setOfferPrice(post.price?.toString() || '');
+      setOfferQty('1');
+    }
+  }, [post]);
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <View style={offerStyles.overlay}>
+        <View style={offerStyles.sheet}>
+          <View style={offerStyles.handle} />
+          <Text style={offerStyles.title}>Make an Offer</Text>
+          {post && (
+            <Text style={offerStyles.postName}>{post.produceName} — ₦{post.price}/{post.unit}</Text>
+          )}
+
+          <Text style={offerStyles.label}>Your Offer Price (₦ per {post?.unit})</Text>
+          <TextInput
+            style={offerStyles.input}
+            value={offerPrice}
+            onChangeText={setOfferPrice}
+            keyboardType="numeric"
+            placeholder="Enter price"
+            placeholderTextColor={COLORS.textLight}
+          />
+
+          <Text style={offerStyles.label}>Quantity ({post?.unit})</Text>
+          <TextInput
+            style={offerStyles.input}
+            value={offerQty}
+            onChangeText={setOfferQty}
+            keyboardType="numeric"
+            placeholder="Enter quantity"
+            placeholderTextColor={COLORS.textLight}
+          />
+
+          {offerPrice && offerQty ? (
+            <View style={offerStyles.totalRow}>
+              <Text style={offerStyles.totalLabel}>Total</Text>
+              <Text style={offerStyles.totalValue}>
+                ₦{(parseFloat(offerPrice || '0') * parseFloat(offerQty || '0')).toLocaleString()}
+              </Text>
+            </View>
+          ) : null}
+
+          <View style={offerStyles.btnRow}>
+            <TouchableOpacity style={offerStyles.cancelBtn} onPress={onClose}>
+              <Text style={offerStyles.cancelText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={offerStyles.submitBtn}
+              onPress={() => onSubmit(offerPrice, offerQty)}
+            >
+              <Text style={offerStyles.submitText}>Send Offer</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const offerStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  sheet: {
+    backgroundColor: COLORS.surface,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    paddingBottom: 36,
+  },
+  handle: {
+    width: 40,
+    height: 4,
+    backgroundColor: COLORS.border,
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: 20,
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: COLORS.text,
+    marginBottom: 4,
+  },
+  postName: {
+    fontSize: 14,
+    color: COLORS.textLight,
+    marginBottom: 20,
+  },
+  label: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.textMid,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 8,
+  },
+  input: {
+    backgroundColor: COLORS.background,
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+    borderRadius: 12,
+    padding: 14,
+    fontSize: 16,
+    color: COLORS.text,
+    marginBottom: 16,
+  },
+  totalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: COLORS.primaryPale,
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 20,
+  },
+  totalLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.primary,
+  },
+  totalValue: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: COLORS.primary,
+  },
+  btnRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  cancelBtn: {
+    flex: 1,
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  cancelText: {
+    color: COLORS.textMid,
+    fontWeight: '700',
+    fontSize: 15,
+  },
+  submitBtn: {
+    flex: 2,
+    backgroundColor: COLORS.primary,
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  submitText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 15,
+  },
+});
+
+// ─── Main Home Screen ────────────────────────────────────────────────────────
 export default function HomeScreen() {
   const { user } = useAuth();
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [locationFilter, setLocationFilter] = useState('');
-  
+
   const [offerModalVisible, setOfferModalVisible] = useState(false);
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
-  const [offerPrice, setOfferPrice] = useState('');
-  const [offerQuantity, setOfferQuantity] = useState('');
+
+  const [videoModalVisible, setVideoModalVisible] = useState(false);
+  const [videoUrl, setVideoUrl] = useState('');
 
   useEffect(() => {
     const postsRef = ref(database, 'posts');
     const unsubscribe = onValue(postsRef, (snapshot) => {
-        const loadedPosts: Post[] = [];
-        snapshot.forEach((childSnapshot) => {
-          loadedPosts.push({ id: childSnapshot.key as string, ...childSnapshot.val() });
-        });
-        loadedPosts.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-        setPosts(loadedPosts);
-        setLoading(false);
-        setError('');
-      }, (err) => {
-        setError('Failed to load posts.');
-        setLoading(false);
-      }
-    );
+      const loadedPosts: Post[] = [];
+      snapshot.forEach((child) => {
+        loadedPosts.push({ id: child.key as string, ...child.val() });
+      });
+      loadedPosts.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      setPosts(loadedPosts);
+      setLoading(false);
+    }, () => setLoading(false));
     return () => unsubscribe();
   }, []);
 
   const onRefresh = () => {
     setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 1200);
+    setTimeout(() => setRefreshing(false), 1000);
   };
 
-  const handleMakeOffer = async () => {
-    if (!selectedPost || !user || !offerPrice || !offerQuantity) return;
+  const handleMakeOffer = async (offerPrice: string, offerQty: string) => {
+    if (!selectedPost || !user || !offerPrice || !offerQty) return;
     try {
       const newOrderRef = push(ref(database, 'orders'));
       await set(newOrderRef, {
         postId: selectedPost.id,
         produceName: selectedPost.produceName,
         buyerUid: user.uid,
+        buyerName: user.displayName || '',
+        buyerEmail: user.email || '',
         farmerUid: selectedPost.farmerUid,
+        farmerName: selectedPost.farmerName || '',
+        farmerEmail: selectedPost.farmerEmail || '',
         priceOffered: parseFloat(offerPrice),
-        quantity: parseFloat(offerQuantity),
+        quantity: parseFloat(offerQty),
         status: 'pending',
-        createdAt: serverTimestamp()
+        createdAt: serverTimestamp(),
       });
-      Alert.alert('Success', 'Offer sent to farmer! Check Orders tab.');
+      Alert.alert('Offer Sent! 🎉', 'The farmer will review your offer. Check the Orders tab.');
       setOfferModalVisible(false);
     } catch (e: any) {
       Alert.alert('Error', e.message);
     }
   };
 
-  const filteredPosts = posts.filter(post => {
-    const matchesSearch = post.produceName?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesLocation = locationFilter ? post.location?.toLowerCase().includes(locationFilter.toLowerCase()) : true;
-    return matchesSearch && matchesLocation;
+  const openChat = (post: Post) => {
+    if (!user) return;
+    if (user.uid === post.farmerUid) {
+      Alert.alert('Your Post', 'You cannot message yourself. Buyers will contact you.');
+      return;
+    }
+    // threadId = postId_buyerUid — unique private thread per buyer per post
+    const threadId = `${post.id}_${user.uid}`;
+    router.push({
+      pathname: '/chat/[threadId]',
+      params: {
+        threadId,
+        postId: post.id,
+        farmerUid: post.farmerUid,
+        farmerName: post.farmerName || 'Farmer',
+        farmerEmail: post.farmerEmail || '',
+        produceName: post.produceName,
+      },
+    });
+  };
+
+  const filteredPosts = posts.filter((post) => {
+    const matchSearch = post.produceName?.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchLoc = locationFilter
+      ? post.location?.toLowerCase().includes(locationFilter.toLowerCase())
+      : true;
+    return matchSearch && matchLoc;
   });
 
   const renderPost = ({ item }: { item: Post }) => (
-    <TouchableOpacity style={styles.postCard} onPress={() => router.push(`/chat/${item.id}`)} activeOpacity={0.8}>
-      {item.images && item.images.length > 0 ? (
-        <Image source={{ uri: item.images[0] }} style={styles.postImage} />
-      ) : (
-        <View style={[styles.postImage, styles.noImage]}>
-          <Ionicons name="leaf-outline" size={40} color={COLORS.primaryLight} />
-        </View>
-      )}
-
-      <View style={styles.postContent}>
-        <View style={styles.postHeader}>
-          <Text style={styles.produce}>{item.produceName}</Text>
-          <Text style={styles.price}>₦{item.price} / {item.unit}</Text>
-        </View>
-        
-        <View style={styles.badgeRow}>
-          <View style={styles.badge}>
-            <Ionicons name="cube-outline" size={14} color={COLORS.primary} />
-            <Text style={styles.badgeText}>{item.quantity} available</Text>
+    <View style={styles.card}>
+      {/* Image */}
+      <View style={styles.imageContainer}>
+        {item.images && item.images.length > 0 ? (
+          <Image source={{ uri: item.images[0] }} style={styles.cardImage} />
+        ) : (
+          <View style={[styles.cardImage, styles.noImagePlaceholder]}>
+            <Ionicons name="leaf" size={42} color={COLORS.primaryLight} />
           </View>
-          <View style={[styles.badge, { backgroundColor: '#FEF3C7' }]}>
-            <Ionicons name="location-outline" size={14} color={COLORS.secondary} />
-            <Text style={[styles.badgeText, { color: COLORS.secondary }]}>{item.location}</Text>
-          </View>
-        </View>
+        )}
 
-        <Text style={styles.desc} numberOfLines={2}>{item.description}</Text>
-        
-        <View style={styles.postActions}>
-          <TouchableOpacity style={styles.actionBtnOutline} onPress={() => router.push(`/chat/${item.id}`)}>
-            <Ionicons name="chatbubble-outline" size={18} color={COLORS.primary} />
-            <Text style={styles.actionTextOutline}>Message</Text>
+        {/* LIVE video badge */}
+        {item.videoUrl ? (
+          <TouchableOpacity
+            style={styles.liveBadge}
+            onPress={() => {
+              setVideoUrl(item.videoUrl!);
+              setVideoModalVisible(true);
+            }}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="videocam" size={12} color="#fff" />
+            <Text style={styles.liveBadgeText}>LIVE</Text>
           </TouchableOpacity>
-          
-          {user?.role === 'buyer' && (
-            <TouchableOpacity 
-              style={styles.actionBtnSolid}
+        ) : null}
+
+        {/* Status badge */}
+        {item.status === 'sold' && (
+          <View style={styles.soldBadge}>
+            <Text style={styles.soldBadgeText}>SOLD</Text>
+          </View>
+        )}
+
+        {/* Verified badge */}
+        {item.farmerVerified && (
+          <View style={styles.verifiedBadge}>
+            <Ionicons name="checkmark-circle" size={14} color={COLORS.verified} />
+            <Text style={styles.verifiedBadgeText}>Verified</Text>
+          </View>
+        )}
+      </View>
+
+      {/* Content */}
+      <View style={styles.cardBody}>
+        <View style={styles.cardTopRow}>
+          <Text style={styles.produceName} numberOfLines={1}>{item.produceName}</Text>
+          <Text style={styles.priceText}>₦{item.price?.toLocaleString()}</Text>
+        </View>
+        <Text style={styles.priceUnit}>per {item.unit}</Text>
+
+        <View style={styles.metaRow}>
+          <View style={styles.metaChip}>
+            <Ionicons name="cube-outline" size={13} color={COLORS.primary} />
+            <Text style={styles.metaChipText}>{item.quantity} {item.unit}</Text>
+          </View>
+          <View style={[styles.metaChip, styles.metaChipAmber]}>
+            <Ionicons name="location-outline" size={13} color={COLORS.secondary} />
+            <Text style={[styles.metaChipText, { color: COLORS.secondary }]}>{item.location}</Text>
+          </View>
+        </View>
+
+        {item.description ? (
+          <Text style={styles.description} numberOfLines={2}>{item.description}</Text>
+        ) : null}
+
+        {/* Farmer info */}
+        {item.farmerName ? (
+          <View style={styles.farmerRow}>
+            <Ionicons name="person-circle-outline" size={16} color={COLORS.textLight} />
+            <Text style={styles.farmerName}>{item.farmerName}</Text>
+          </View>
+        ) : null}
+
+        {/* Actions */}
+        <View style={styles.actionRow}>
+          {/* Message button - only if not own post */}
+          {user?.uid !== item.farmerUid && (
+            <TouchableOpacity
+              style={styles.msgBtn}
+              onPress={() => openChat(item)}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="chatbubble-ellipses-outline" size={17} color={COLORS.primary} />
+              <Text style={styles.msgBtnText}>Message</Text>
+            </TouchableOpacity>
+          )}
+
+          {/* Offer button - buyers only, post must be available */}
+          {user?.role === 'buyer' && item.status !== 'sold' && (
+            <TouchableOpacity
+              style={styles.offerBtn}
               onPress={() => {
                 setSelectedPost(item);
-                setOfferPrice(item.price.toString());
-                setOfferQuantity('1');
                 setOfferModalVisible(true);
               }}
+              activeOpacity={0.85}
             >
-              <Text style={styles.actionTextSolid}>Make Offer</Text>
+              <Ionicons name="pricetag-outline" size={17} color="#fff" />
+              <Text style={styles.offerBtnText}>Make Offer</Text>
             </TouchableOpacity>
           )}
         </View>
       </View>
-    </TouchableOpacity>
+    </View>
   );
 
-  if (loading) return <View style={styles.center}><ActivityIndicator size="large" color={COLORS.primary} /></View>;
+  const ListHeader = () => (
+    <View style={styles.listHeader}>
+      {/* Search */}
+      <View style={styles.searchBar}>
+        <Ionicons name="search-outline" size={20} color={COLORS.textLight} />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search produce..."
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          placeholderTextColor={COLORS.textLight}
+        />
+        {searchQuery.length > 0 && (
+          <TouchableOpacity onPress={() => setSearchQuery('')}>
+            <Ionicons name="close-circle" size={18} color={COLORS.textLight} />
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* Location filter */}
+      <View style={[styles.searchBar, { marginTop: 10 }]}>
+        <Ionicons name="location-outline" size={20} color={COLORS.textLight} />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Filter by location..."
+          value={locationFilter}
+          onChangeText={setLocationFilter}
+          placeholderTextColor={COLORS.textLight}
+        />
+        {locationFilter.length > 0 && (
+          <TouchableOpacity onPress={() => setLocationFilter('')}>
+            <Ionicons name="close-circle" size={18} color={COLORS.textLight} />
+          </TouchableOpacity>
+        )}
+      </View>
+
+      <Text style={styles.resultCount}>
+        {filteredPosts.length} listing{filteredPosts.length !== 1 ? 's' : ''} available
+      </Text>
+    </View>
+  );
+
+  if (loading) {
+    return (
+      <View style={styles.centerScreen}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+        <Text style={styles.loadingText}>Loading market...</Text>
+      </View>
+    );
+  }
 
   return (
-    <ScreenWrapper style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Marketplace 🌾</Text>
-        <Text style={styles.headerSubtitle}>Discover fresh produce directly from farmers</Text>
-      </View>
-      
-      <View style={styles.filtersContainer}>
-        <View style={styles.searchBox}>
-          <Ionicons name="search" size={20} color={COLORS.textLight} />
-          <TextInput style={styles.searchInput} placeholder="Search produce..." value={searchQuery} onChangeText={setSearchQuery} placeholderTextColor={COLORS.textLight} />
-        </View>
-        <View style={styles.searchBox}>
-          <Ionicons name="location" size={20} color={COLORS.textLight} />
-          <TextInput style={styles.searchInput} placeholder="Filter by location" value={locationFilter} onChangeText={setLocationFilter} placeholderTextColor={COLORS.textLight} />
-        </View>
-      </View>
+    <View style={styles.screen}>
+      <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
 
       <FlatList
         data={filteredPosts}
-        keyExtractor={item => item.id}
+        keyExtractor={(item) => item.id}
         renderItem={renderPost}
+        ListHeaderComponent={ListHeader}
+        ListEmptyComponent={
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyEmoji}>🌱</Text>
+            <Text style={styles.emptyTitle}>No produce listed yet</Text>
+            <Text style={styles.emptySubtitle}>Check back soon or pull to refresh</Text>
+          </View>
+        }
         contentContainerStyle={{ paddingBottom: 20 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} />}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[COLORS.primary]}
+            tintColor={COLORS.primary}
+          />
+        }
       />
 
-      <Modal visible={offerModalVisible} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Make an Offer</Text>
-            <Text style={{color: COLORS.textLight, marginBottom: 15}}>Suggest a price for {selectedPost?.produceName}</Text>
-            
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Offer Price (₦)</Text>
-              <TextInput style={styles.modalInput} keyboardType="numeric" value={offerPrice} onChangeText={setOfferPrice} />
-            </View>
-            
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Quantity Needed</Text>
-              <TextInput style={styles.modalInput} keyboardType="numeric" value={offerQuantity} onChangeText={setOfferQuantity} />
-            </View>
+      <OfferModal
+        visible={offerModalVisible}
+        post={selectedPost}
+        onClose={() => setOfferModalVisible(false)}
+        onSubmit={handleMakeOffer}
+      />
 
-            <View style={styles.modalBtns}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => setOfferModalVisible(false)}>
-                <Text style={styles.cancelText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.saveBtn} onPress={handleMakeOffer}>
-                <Text style={styles.saveText}>Send Offer</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-    </ScreenWrapper>
+      <VideoModal
+        visible={videoModalVisible}
+        videoUrl={videoUrl}
+        onClose={() => setVideoModalVisible(false)}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: 'transparent' },
-  header: { padding: 20, paddingTop: 10, backgroundColor: 'rgba(255, 255, 255, 0.85)', borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.05)' },
-  headerTitle: { fontSize: 26, fontWeight: '800', color: COLORS.text, marginBottom: 4 },
-  headerSubtitle: { fontSize: 14, color: COLORS.textLight },
-  filtersContainer: { paddingHorizontal: 16, paddingVertical: 12, backgroundColor: 'rgba(255, 255, 255, 0.85)', borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.05)', marginBottom: 10 },
-  searchBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(243, 244, 246, 0.8)', borderRadius: 10, paddingHorizontal: 12, marginBottom: 8 },
-  searchInput: { flex: 1, paddingVertical: 10, paddingHorizontal: 8, fontSize: 15, color: COLORS.text },
-  
-  postCard: { backgroundColor: 'rgba(255, 255, 255, 0.95)', marginHorizontal: 16, marginVertical: 8, borderRadius: 16, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 10, elevation: 3, borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.5)' },
-  postImage: { width: '100%', height: 160, backgroundColor: '#E5E7EB' },
-  noImage: { justifyContent: 'center', alignItems: 'center', backgroundColor: '#ECFDF5' },
-  postContent: { padding: 16 },
-  postHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  produce: { fontSize: 19, fontWeight: 'bold', color: COLORS.text },
-  price: { fontSize: 18, fontWeight: '800', color: COLORS.success },
-  badgeRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
-  badge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#ECFDF5', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, gap: 4 },
-  badgeText: { fontSize: 12, fontWeight: '600', color: COLORS.primary },
-  desc: { color: COLORS.textLight, fontSize: 14, lineHeight: 20, marginBottom: 16 },
-  
-  postActions: { flexDirection: 'row', gap: 10, borderTopWidth: 1, borderTopColor: COLORS.border, paddingTop: 16 },
-  actionBtnOutline: { flex: 1, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: COLORS.primary },
-  actionTextOutline: { color: COLORS.primary, fontWeight: '600', marginLeft: 6 },
-  actionBtnSolid: { flex: 1, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', paddingVertical: 10, borderRadius: 8, backgroundColor: COLORS.primary },
-  actionTextSolid: { color: COLORS.white, fontWeight: '600' },
-  
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 },
-  modalContent: { backgroundColor: COLORS.white, padding: 24, borderRadius: 16 },
-  modalTitle: { fontSize: 22, fontWeight: 'bold', color: COLORS.text, marginBottom: 4 },
-  inputGroup: { marginBottom: 16 },
-  inputLabel: { fontSize: 13, fontWeight: '600', color: COLORS.textLight, marginBottom: 6, textTransform: 'uppercase' },
-  modalInput: { borderWidth: 1, borderColor: COLORS.border, padding: 14, borderRadius: 10, fontSize: 16, backgroundColor: '#F9FAFB' },
-  modalBtns: { flexDirection: 'row', gap: 12, marginTop: 10 },
-  cancelBtn: { flex: 1, padding: 14, borderRadius: 10, backgroundColor: '#F3F4F6', alignItems: 'center' },
-  cancelText: { color: COLORS.text, fontWeight: '600', fontSize: 16 },
-  saveBtn: { flex: 1, padding: 14, borderRadius: 10, backgroundColor: COLORS.primary, alignItems: 'center' },
-  saveText: { color: COLORS.white, fontWeight: 'bold', fontSize: 16 },
+  screen: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
+  centerScreen: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: COLORS.background,
+    gap: 12,
+  },
+  loadingText: {
+    color: COLORS.textLight,
+    fontSize: 14,
+  },
+  listHeader: {
+    padding: 16,
+    paddingBottom: 8,
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.surface,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: Platform.OS === 'ios' ? 12 : 8,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    gap: 10,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    color: COLORS.text,
+  },
+  resultCount: {
+    fontSize: 13,
+    color: COLORS.textLight,
+    marginTop: 12,
+    marginLeft: 2,
+    fontWeight: '500',
+  },
+  // Card styles
+  card: {
+    backgroundColor: COLORS.surface,
+    marginHorizontal: 16,
+    marginBottom: 16,
+    borderRadius: 18,
+    overflow: 'hidden',
+    shadowColor: COLORS.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.07,
+    shadowRadius: 10,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+  },
+  imageContainer: {
+    position: 'relative',
+  },
+  cardImage: {
+    width: '100%',
+    height: 190,
+    backgroundColor: COLORS.primaryPale,
+  },
+  noImagePlaceholder: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  liveBadge: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: COLORS.live,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+    shadowColor: COLORS.live,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  liveBadgeText: {
+    color: '#fff',
+    fontWeight: '800',
+    fontSize: 11,
+    letterSpacing: 0.5,
+  },
+  soldBadge: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    backgroundColor: COLORS.textMid,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  soldBadgeText: {
+    color: '#fff',
+    fontWeight: '800',
+    fontSize: 11,
+    letterSpacing: 0.5,
+  },
+  verifiedBadge: {
+    position: 'absolute',
+    bottom: 10,
+    right: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 20,
+  },
+  verifiedBadgeText: {
+    color: COLORS.verified,
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  cardBody: {
+    padding: 16,
+  },
+  cardTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 2,
+  },
+  produceName: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: COLORS.text,
+    flex: 1,
+    marginRight: 8,
+  },
+  priceText: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: COLORS.primary,
+  },
+  priceUnit: {
+    fontSize: 12,
+    color: COLORS.textLight,
+    marginBottom: 12,
+    textAlign: 'right',
+  },
+  metaRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 10,
+  },
+  metaChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: COLORS.primaryPale,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+  },
+  metaChipAmber: {
+    backgroundColor: COLORS.secondaryLight,
+  },
+  metaChipText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.primary,
+  },
+  description: {
+    fontSize: 13,
+    color: COLORS.textMid,
+    lineHeight: 19,
+    marginBottom: 10,
+  },
+  farmerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 12,
+  },
+  farmerName: {
+    fontSize: 13,
+    color: COLORS.textLight,
+    fontWeight: '500',
+  },
+  actionRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  msgBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 11,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.primaryPale,
+  },
+  msgBtnText: {
+    color: COLORS.primary,
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  offerBtn: {
+    flex: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 11,
+    borderRadius: 12,
+    backgroundColor: COLORS.primary,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  offerBtnText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 60,
+    paddingHorizontal: 40,
+  },
+  emptyEmoji: {
+    fontSize: 56,
+    marginBottom: 12,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: COLORS.text,
+    marginBottom: 6,
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: COLORS.textLight,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
 });
