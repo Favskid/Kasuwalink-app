@@ -1,9 +1,9 @@
 // config/firebaseConfig.ts
-import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
 import { initializeApp } from 'firebase/app';
-import { getReactNativePersistence, initializeAuth } from 'firebase/auth';
+import { browserLocalPersistence, getAuth, initializeAuth } from 'firebase/auth';
 import { getDatabase } from 'firebase/database';
 import { getStorage } from 'firebase/storage';
+import { Platform } from 'react-native';
 
 const firebaseConfig = {
     apiKey: "AIzaSyDvvxtsmcCFOKoNfXtVPhQc5tgrzXvxPSk",
@@ -18,11 +18,24 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 
-// Auth with AsyncStorage persistence — prevents losing session on app restart
-export const auth = initializeAuth(app, {
-    persistence: getReactNativePersistence(ReactNativeAsyncStorage),
-});
+// On native (iOS/Android): use AsyncStorage for persistence across app restarts.
+// On web: use browserLocalPersistence (getReactNativePersistence doesn't exist on web).
+let auth: ReturnType<typeof getAuth>;
 
+if (Platform.OS === 'web') {
+    auth = initializeAuth(app, {
+        persistence: browserLocalPersistence,
+    });
+} else {
+    // Dynamic import so the web bundle never tries to load AsyncStorage
+    const { getReactNativePersistence } = require('firebase/auth');
+    const ReactNativeAsyncStorage = require('@react-native-async-storage/async-storage').default;
+    auth = initializeAuth(app, {
+        persistence: getReactNativePersistence(ReactNativeAsyncStorage),
+    });
+}
+
+export { auth };
 export const database = getDatabase(app);
 export const storage = getStorage(app);
 

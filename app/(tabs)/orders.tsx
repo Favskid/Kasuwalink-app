@@ -4,23 +4,28 @@ import { router } from 'expo-router';
 import { equalTo, onValue, orderByChild, query, ref, update } from 'firebase/database';
 import { useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  Modal,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    Modal,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
-import { WebView } from 'react-native-webview';
 import { database } from '../../config/firebaseConfig';
 import { COLORS } from '../../constants/colors';
 import { useAuth } from '../../hooks/useAuth';
 import { Order, OrderStatus } from '../../types';
+
+// Only import WebView on native — web doesn't support it
+let WebView: any = null;
+if (Platform.OS !== 'web') {
+  WebView = require('react-native-webview').WebView;
+}
 
 const PAYSTACK_PUBLIC_KEY = 'pk_test_76913f178ecddab58afac746c97e5d07d9a5484b';
 
